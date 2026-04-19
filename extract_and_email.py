@@ -244,84 +244,68 @@ def build_email_html(daily_data: list[dict], alert_type: str, billing_day: int =
     net_label = "USE MORE ENERGY NOW 🔌" if net_excess > 0 else "YOU ARE NET IMPORTER ✓"
     net_bg    = "#e8f5e9" if net_excess > 0 else "#e3f2fd"
 
-    return f"""<!DOCTYPE html>
-<html>
-<body style="margin:0;padding:0;background:#f0f2f5;font-family:Arial,sans-serif;">
-<div style="max-width:640px;margin:30px auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.1);">
-
-  <!-- Header -->
-  <div style="background:{header_color};padding:24px 30px;">
-    <h1 style="color:white;margin:0;font-size:22px;">{badge_text}</h1>
-    <p style="color:rgba(255,255,255,0.85);margin:8px 0 0;font-size:14px;">{subtitle}</p>
-    <p style="color:rgba(255,255,255,0.7);margin:4px 0 0;font-size:12px;">Cycle: {cycle_start} → {cycle_end} &nbsp;({days_count} days)</p>
-  </div>
-
-  <!-- NET EXCESS HERO -->
-  <div style="background:{net_bg};padding:28px 30px;text-align:center;border-bottom:3px solid {excess_color};">
-    <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:8px;">Net Excess This Cycle (after 5% loss)</div>
-    <div style="font-size:56px;font-weight:900;color:{excess_color};line-height:1;">{net_excess:+.2f} kWh</div>
-    <div style="font-size:14px;font-weight:bold;color:{excess_color};margin-top:8px;">{net_label}</div>
-    <div style="font-size:11px;color:#999;margin-top:6px;">= ({total_export:.2f} exported − {total_import:.2f} imported) × 0.95</div>
-  </div>
-
-  <!-- Sub-stats -->
-  <div style="padding:20px 30px 0;">
-    <div style="display:flex;gap:12px;flex-wrap:wrap;">
-      <div style="flex:1;min-width:140px;background:{badge_bg};border-radius:8px;padding:16px;text-align:center;">
-        <div style="font-size:11px;text-transform:uppercase;color:#888;margin-bottom:4px;">Total Exported to Grid</div>
-        <div style="font-size:28px;font-weight:bold;color:#333;">{total_export:.2f}</div>
-        <div style="font-size:12px;color:#888;">kWh</div>
-      </div>
-      <div style="flex:1;min-width:140px;background:#e8f5e9;border-radius:8px;padding:16px;text-align:center;">
-        <div style="font-size:11px;text-transform:uppercase;color:#888;margin-bottom:4px;">Total Imported from Grid</div>
-        <div style="font-size:28px;font-weight:bold;color:#333;">{total_import:.2f}</div>
-        <div style="font-size:12px;color:#888;">kWh</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Daily breakdown table -->
-  <div style="padding:20px 30px 0;">
-    <h3 style="margin:0 0 12px;color:#333;font-size:15px;">Daily Breakdown</h3>
-    <table style="width:100%;border-collapse:collapse;font-size:13px;">
-      <thead>
-        <tr style="background:#f5f5f5;">
-          <th style="padding:8px 10px;text-align:left;color:#555;font-weight:600;">Date</th>
-          <th style="padding:8px 10px;text-align:right;color:#555;font-weight:600;">Exported (kWh)</th>
-          <th style="padding:8px 10px;text-align:right;color:#555;font-weight:600;">Imported (kWh)</th>
-          <th style="padding:8px 10px;text-align:right;color:#555;font-weight:600;">Net after 5% (kWh)</th>
-        </tr>
-      </thead>
-      <tbody>{rows_html}</tbody>
-      <tfoot>
-        <tr style="background:#fafafa;font-weight:bold;font-size:14px;">
-          <td style="padding:10px;border-top:2px solid #ddd;">CYCLE TOTAL</td>
-          <td style="padding:10px;border-top:2px solid #ddd;text-align:right;">{total_export:.2f}</td>
-          <td style="padding:10px;border-top:2px solid #ddd;text-align:right;">{total_import:.2f}</td>
-          <td style="padding:10px;border-top:2px solid #ddd;text-align:right;color:{excess_color};font-size:16px;">{net_excess:+.2f}</td>
-        </tr>
-      </tfoot>
-    </table>
-  </div>
-
-  <!-- Tips -->
-  <div style="padding:20px 30px 0;">
-    <div style="background:#f9f9f9;border-left:4px solid {header_color};padding:16px;border-radius:4px;">
-      <h3 style="margin:0 0 10px;color:{header_color};font-size:14px;">{tips_heading}</h3>
-      <ul style="margin:0;padding-left:18px;color:#555;font-size:13px;">{tips_html}</ul>
-    </div>
-    <p style="color:#777;font-size:13px;margin-top:12px;">{cycle_note}</p>
-  </div>
-
-  <!-- Footer -->
-  <div style="padding:20px 30px 24px;">
-    <hr style="border:none;border-top:1px solid #eee;margin-bottom:16px;">
-    <p style="color:#bbb;font-size:11px;text-align:center;margin:0;">
-      Automated alert from FusionSolar Monitor &nbsp;|&nbsp; {now_str}
-    </p>
-  </div>
-
-</div>
+    return f"""<html xmlns="http://www.w3.org/1999/xhtml">
+<head><meta charset="utf-8" /></head>
+<body style="font-family:Arial,sans-serif;margin:0;padding:0;background:#f5f5f5;">
+<table width="100%" style="background:#f5f5f5;">
+<tr><td align="center" style="padding:20px 0;">
+<table width="640" style="background:white;border-collapse:collapse;">
+<tr style="background:{header_color};color:white;">
+<td style="padding:24px 30px;">
+<h2 style="margin:0 0 8px 0;font-size:24px;color:white;">{badge_text}</h2>
+<p style="margin:0 0 4px 0;font-size:15px;color:rgba(255,255,255,0.9);">{subtitle}</p>
+<p style="margin:0;font-size:12px;color:rgba(255,255,255,0.7);">Cycle: {cycle_start} to {cycle_end} ({days_count} days)</p>
+</td>
+</tr>
+<tr style="background:{net_bg};">
+<td style="padding:30px;text-align:center;border-bottom:3px solid {excess_color};">
+<p style="margin:0 0 8px 0;font-size:12px;text-transform:uppercase;color:#888;letter-spacing:1px;">Net Excess After 5% Loss</p>
+<p style="margin:0 0 10px 0;font-size:56px;font-weight:900;color:{excess_color};line-height:1;">{net_excess:+.2f} kWh</p>
+<p style="margin:0 0 6px 0;font-size:15px;font-weight:bold;color:{excess_color};">{net_label}</p>
+<p style="margin:0;font-size:12px;color:#999;">({total_export:.2f} exported minus {total_import:.2f} imported) times 0.95</p>
+</td>
+</tr>
+<tr>
+<td style="padding:20px 30px;">
+<p style="margin:0 0 10px 0;font-size:13px;color:#333;"><strong>Exported to Grid:</strong> {total_export:.2f} kWh</p>
+<p style="margin:0;font-size:13px;color:#333;"><strong>Imported from Grid:</strong> {total_import:.2f} kWh</p>
+</td>
+</tr>
+<tr>
+<td style="padding:0 30px 20px 30px;">
+<p style="margin:0 0 12px 0;font-size:13px;color:#333;font-weight:bold;">Daily Breakdown</p>
+<table width="100%" style="border-collapse:collapse;font-size:12px;color:#333;">
+<tr style="background:#f5f5f5;border-bottom:1px solid #ddd;">
+<th style="padding:8px;text-align:left;color:#666;">Date</th>
+<th style="padding:8px;text-align:right;color:#666;">Export kWh</th>
+<th style="padding:8px;text-align:right;color:#666;">Import kWh</th>
+<th style="padding:8px;text-align:right;color:#666;">Net kWh</th>
+</tr>
+{rows_html}
+<tr style="background:#f9f9f9;font-weight:bold;border-top:2px solid #ddd;">
+<td style="padding:10px;">TOTAL</td>
+<td style="padding:10px;text-align:right;">{total_export:.2f}</td>
+<td style="padding:10px;text-align:right;">{total_import:.2f}</td>
+<td style="padding:10px;text-align:right;color:{excess_color};font-size:14px;">{net_excess:+.2f}</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr style="background:#f9f9f9;">
+<td style="padding:20px 30px;">
+<p style="margin:0 0 10px 0;font-size:13px;color:{header_color};font-weight:bold;">{tips_heading}</p>
+<ul style="margin:0;padding-left:18px;font-size:12px;color:#555;">{tips_html}</ul>
+<p style="margin:12px 0 0 0;font-size:12px;color:#777;">{cycle_note}</p>
+</td>
+</tr>
+<tr style="border-top:1px solid #ddd;">
+<td style="padding:15px 30px;text-align:center;font-size:11px;color:#999;">
+Automated alert from FusionSolar Monitor | {now_str}
+</td>
+</tr>
+</table>
+</td></tr>
+</table>
 </body>
 </html>"""
 
