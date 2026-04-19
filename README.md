@@ -4,20 +4,20 @@ Automated email alerts to help reduce TNB (Tenaga Nasional Berhad) excess energy
 
 ## How it works
 
-TNB bills on the **15th of every month**. If you export more energy than you import during a cycle, TNB charges a storage penalty on the excess. This tool:
+TNB bills on a fixed day each month (default: **15th**). If you export more energy than you import during a cycle, TNB charges a storage penalty on the excess. This tool:
 
-1. Logs into FusionSolar International and scrapes **daily grid data** (Fed to Grid / From Grid) for every day from the **15th to today**
-2. Calculates cumulative net excess with a 5% heat-loss deduction
+1. Logs into FusionSolar International and scrapes **daily grid data** (Fed to Grid / From Grid) for every day from the billing reset date to today
+2. Calculates cumulative net excess with a **5% heat-loss deduction**
 3. Emails a summary with a **daily breakdown table** to all configured recipients
 
-**Two alert types are sent automatically:**
+**Two alerts fire automatically:**
 
 | Day of Month | Alert | Purpose |
 |---|---|---|
-| 10–14 | PRE_BILLING | 5 days left — turn on AC / high-consumption appliances |
-| 23+ | MID_CYCLE | Monitor mid-cycle accumulation |
+| 5 days before bill date | PRE_BILLING | Turn on AC / high-consumption appliances |
+| 8 days after bill date | MID_CYCLE | Monitor mid-cycle accumulation |
 
-You can also trigger either alert manually at any time.
+You can also trigger any alert manually at any time.
 
 ---
 
@@ -36,19 +36,22 @@ Edit `.env` and fill in your values:
 ```env
 FUSIONSOLAR_USERNAME=your_fusionsolar_email@gmail.com
 FUSIONSOLAR_PASSWORD=your_fusionsolar_password
-EMAIL_PASSWORD=xxxx_xxxx_xxxx_xxxx       # Gmail app password (see below)
-RECIPIENT_EMAILS=you@gmail.com,partner@gmail.com
-STATION_ID=72289258                       # From your FusionSolar monitoring URL
+EMAIL_PASSWORD=xxxxxxxxxxxxxxxxxxxx
+RECIPIENT_EMAILS=you@gmail.com,partner@yahoo.com
+STATION_ID=72289258
+BILLING_DAY=15
 ```
 
 ### 2. Generate a Gmail App Password
 
-Your normal Gmail password won't work. You need an **App Password**:
+Your normal Gmail password **will not work**. You need an **App Password**:
 
 1. Go to [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
 2. Select app: **Mail**, device: **Other** → name it "FusionSolar"
-3. Copy the 16-character password into `EMAIL_PASSWORD` in `.env`
+3. Copy the generated password into `EMAIL_PASSWORD`
 
+> **Important:** Copy the password exactly as shown — do **not** include spaces. The app password is 16 characters with no spaces (Google may display it with spaces for readability, ignore them).
+>
 > **Requires 2-Step Verification to be enabled on your Google account.**
 
 ### 3. Build and run with Docker
@@ -60,7 +63,7 @@ docker compose run --rm fusionsolar-extractor
 
 ---
 
-## Manual Trigger
+## Manual Triggers
 
 Force an alert regardless of what day it is:
 
@@ -70,7 +73,30 @@ FORCE_ALERT=PRE_BILLING docker compose run --rm fusionsolar-extractor
 
 # Mid-cycle check alert
 FORCE_ALERT=MID_CYCLE docker compose run --rm fusionsolar-extractor
+
+# Test alert — shows current billing cycle data (good for first-time testing)
+FORCE_ALERT=TEST docker compose run --rm fusionsolar-extractor
+
+# Test with a custom date range (from April 1st to today)
+FORCE_ALERT=TEST TEST_START_DATE=2026-04-01 docker compose run --rm fusionsolar-extractor
 ```
+
+---
+
+## Configuration Reference
+
+All settings live in your `.env` file:
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `FUSIONSOLAR_USERNAME` | Yes | — | Your FusionSolar login email |
+| `FUSIONSOLAR_PASSWORD` | Yes | — | Your FusionSolar password |
+| `EMAIL_PASSWORD` | Yes | — | Gmail app password (no spaces) |
+| `RECIPIENT_EMAILS` | Yes | — | Comma-separated list of recipients |
+| `STATION_ID` | Yes | `72289258` | From your FusionSolar monitoring URL |
+| `BILLING_DAY` | No | `15` | Day of month your bill resets |
+| `FORCE_ALERT` | No | _(auto)_ | `PRE_BILLING`, `MID_CYCLE`, or `TEST` |
+| `TEST_START_DATE` | No | _(cycle start)_ | Custom start date for TEST mode (`YYYY-MM-DD`) |
 
 ---
 
@@ -137,10 +163,10 @@ Your `STATION_ID` is in the FusionSolar monitoring URL:
 
 The alert email includes:
 
-- **Summary cards** — total exported, total imported, net excess for the billing cycle
-- **Daily breakdown table** — per-day export / import / net values
-- **Colour-coded net** — red if excess (penalty risk), green if net importer
+- **Summary cards** — total exported, total imported, net excess for the full billing cycle
+- **Daily breakdown table** — per-day export / import / net values colour-coded (red = excess, green = net importer)
 - **Action tips** — what to do to reduce penalty
+- Billing date is shown dynamically based on your `BILLING_DAY` setting
 
 ---
 

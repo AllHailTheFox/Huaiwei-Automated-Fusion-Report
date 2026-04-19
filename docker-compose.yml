@@ -10,9 +10,12 @@ services:
       EMAIL_PASSWORD: ${EMAIL_PASSWORD}
       RECIPIENT_EMAILS: ${RECIPIENT_EMAILS}
       STATION_ID: ${STATION_ID:-72289258}
-      # Leave blank for automatic scheduling (runs on day 10–14 and 23+)
-      # Set to PRE_BILLING or MID_CYCLE to force-send immediately
+      # Day of month the bill resets (default: 15)
+      BILLING_DAY: ${BILLING_DAY:-15}
+      # Leave blank for auto-scheduling; set to PRE_BILLING, MID_CYCLE, or TEST to force-send
       FORCE_ALERT: ${FORCE_ALERT:-}
+      # TEST mode: optionally set a custom start date (YYYY-MM-DD)
+      TEST_START_DATE: ${TEST_START_DATE:-}
       OUTPUT_DIR: /data
     volumes:
       - solar_data:/data
