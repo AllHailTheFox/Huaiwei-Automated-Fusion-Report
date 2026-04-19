@@ -1,0 +1,17 @@
+# FusionSolar TNB Alert — Cron Schedule
+# Edit with: crontab -e
+# Replace /volume2/docker/fusionsolar-extractor with your actual path
+
+# --- Automatic schedule (runs daily; script decides if alert is needed) ---
+
+# Run at 8 AM every day
+0 8 * * * cd /volume2/docker/fusionsolar-extractor && docker compose run --rm fusionsolar-extractor >> /var/log/fusionsolar.log 2>&1
+
+
+# --- Manual override examples ---
+
+# Force PRE_BILLING alert right now (paste into terminal):
+#   FORCE_ALERT=PRE_BILLING docker compose run --rm fusionsolar-extractor
+
+# Force MID_CYCLE alert right now:
+#   FORCE_ALERT=MID_CYCLE docker compose run --rm fusionsolar-extractor

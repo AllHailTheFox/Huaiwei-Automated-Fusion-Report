@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  fusionsolar-extractor:
+    build: .
+    container_name: fusionsolar-extractor
+    environment:
+      FUSIONSOLAR_USERNAME: ${FUSIONSOLAR_USERNAME}
+      FUSIONSOLAR_PASSWORD: ${FUSIONSOLAR_PASSWORD}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD}
+      RECIPIENT_EMAILS: ${RECIPIENT_EMAILS}
+      STATION_ID: ${STATION_ID:-72289258}
+      # Leave blank for automatic scheduling (runs on day 10–14 and 23+)
+      # Set to PRE_BILLING or MID_CYCLE to force-send immediately
+      FORCE_ALERT: ${FORCE_ALERT:-}
+      OUTPUT_DIR: /data
+    volumes:
+      - solar_data:/data
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  solar_data:
+    driver: local
