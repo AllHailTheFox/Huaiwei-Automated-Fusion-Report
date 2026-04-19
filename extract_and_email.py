@@ -201,7 +201,7 @@ def build_email_html(daily_data: list[dict], alert_type: str, billing_day: int =
         badge_bg = "#ffebee"
         badge_text = f"⚠️ PRE-BILLING ALERT — {days_until_billing} Days Before Bill"
         subtitle = f"Your billing cycle ends on the {billing_day}th. Turn on AC or high-consumption appliances to reduce excess storage penalty."
-        excess_color = "#d32f2f" if net_excess > 0 else "#388e3c"
+        excess_color = "#388e3c" if net_excess > 0 else "#1565c0"
         tips_heading = f"Reduce Excess Before the {billing_day}th"
         tips = [
             "Turn on air conditioning",
@@ -216,7 +216,7 @@ def build_email_html(daily_data: list[dict], alert_type: str, billing_day: int =
         badge_bg = "#e8eaf6"
         badge_text = "🧪 TEST — Billing Cycle Summary"
         subtitle = "Manual test run. This shows the current billing cycle data."
-        excess_color = "#d32f2f" if net_excess > 0 else "#388e3c"
+        excess_color = "#388e3c" if net_excess > 0 else "#1565c0"
         tips_heading = "This is a Test Alert"
         tips = [
             "This was triggered manually via FORCE_ALERT=TEST",
@@ -241,8 +241,8 @@ def build_email_html(daily_data: list[dict], alert_type: str, billing_day: int =
 
     tips_html = "".join(f"<li style='margin-bottom:6px;'>{t}</li>" for t in tips)
 
-    net_label = "YOU OWE ENERGY ⚠️" if net_excess > 0 else "YOU ARE NET IMPORTER ✓"
-    net_bg    = "#ffebee" if net_excess > 0 else "#e8f5e9"
+    net_label = "USE MORE ENERGY NOW 🔌" if net_excess > 0 else "YOU ARE NET IMPORTER ✓"
+    net_bg    = "#e8f5e9" if net_excess > 0 else "#e3f2fd"
 
     return f"""<!DOCTYPE html>
 <html>
