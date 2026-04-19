@@ -185,7 +185,7 @@ def build_email_html(daily_data: list[dict], alert_type: str, billing_day: int =
     rows_html = ""
     for d in daily_data:
         day_net = (d['export'] - d['import']) * 0.95
-        color = "#d32f2f" if day_net > 0 else "#388e3c"
+        color = "#388e3c" if day_net > 0 else "#d32f2f"  # Green if excess (good), red if importer
         rows_html += f"""
         <tr>
             <td style="padding:6px 10px;border-bottom:1px solid #eee;">{d['date']}</td>
