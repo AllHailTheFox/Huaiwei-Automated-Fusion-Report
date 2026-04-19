@@ -185,7 +185,7 @@ def build_email_html(daily_data: list[dict], alert_type: str, billing_day: int =
     rows_html = ""
     for d in daily_data:
         day_net = (d['export'] - d['import']) * 0.95
-        color = "#388e3c" if day_net > 0 else "#1565c0"  # Green if positive excess, blue if negative (importing)
+        color = "#388e3c" if day_net > 0 else "#d32f2f"  # Green if excess, red if importing
         rows_html += f"""
         <tr>
             <td style="padding:6px 10px;border-bottom:1px solid #eee;">{d['date']}</td>
@@ -201,7 +201,7 @@ def build_email_html(daily_data: list[dict], alert_type: str, billing_day: int =
         badge_bg = "#ffebee"
         badge_text = f"⚠️ PRE-BILLING ALERT — {days_until_billing} Days Before Bill"
         subtitle = f"Your billing cycle ends on the {billing_day}th. Turn on AC or high-consumption appliances to reduce excess storage penalty."
-        excess_color = "#388e3c" if net_excess > 0 else "#1565c0"
+        excess_color = "#388e3c" if net_excess > 0 else "#d32f2f"
         tips_heading = f"Reduce Excess Before the {billing_day}th"
         tips = [
             "Turn on air conditioning",
@@ -216,7 +216,7 @@ def build_email_html(daily_data: list[dict], alert_type: str, billing_day: int =
         badge_bg = "#e8eaf6"
         badge_text = "🧪 TEST — Billing Cycle Summary"
         subtitle = "Manual test run. This shows the current billing cycle data."
-        excess_color = "#388e3c" if net_excess > 0 else "#1565c0"
+        excess_color = "#388e3c" if net_excess > 0 else "#d32f2f"
         tips_heading = "This is a Test Alert"
         tips = [
             "This was triggered manually via FORCE_ALERT=TEST",
@@ -319,7 +319,7 @@ class EmailAlert:
         self.sender_email = sender_email
         self.app_password = app_password
 
-    def send(self, recipients: list[str], subject: str, body_html: str) -> bool:
+    def send(self, recipients: list[str], subject: str, body_html: str, body_text: str = "") -> bool:
         to_str = ", ".join(recipients)
         try:
             logger.info(f"Sending email to: {to_str}")
@@ -327,6 +327,8 @@ class EmailAlert:
             msg['Subject'] = subject
             msg['From'] = self.sender_email
             msg['To'] = to_str
+            # Plain text must come first — prevents Gmail collapsing the HTML part
+            msg.attach(MIMEText(body_text or subject, 'plain'))
             msg.attach(MIMEText(body_html, 'html'))
 
             with smtplib.SMTP("smtp.gmail.com", 587) as server:
@@ -405,7 +407,18 @@ async def main():
 
     body = build_email_html(daily_data, alert_type, billing_day)
     emailer = EmailAlert(username, email_pwd)
-    return emailer.send(recipients, subject_map[alert_type], body)
+    total_export = sum(d['export'] for d in daily_data)
+    total_import = sum(d['import'] for d in daily_data)
+    net_excess   = (total_export - total_import) * 0.95
+    plain_text = (
+        f"{subject_map[alert_type]}\n\n"
+        f"Billing cycle: {cycle_start.date()} to {cycle_end.date()}\n\n"
+        f"NET EXCESS (after 5% loss): {net_excess:+.2f} kWh\n"
+        f"Total Exported: {total_export:.2f} kWh\n"
+        f"Total Imported: {total_import:.2f} kWh\n\n"
+        f"Sent: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    )
+    return emailer.send(recipients, subject_map[alert_type], body, plain_text)
 
 
 if __name__ == "__main__":
