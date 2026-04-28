@@ -1,17 +1,33 @@
-# FusionSolar TNB Alert — Cron Schedule
-# Edit with: crontab -e
-# Replace /volume2/docker/fusionsolar-extractor with your actual path
-
-# --- Automatic schedule (runs daily; script decides if alert is needed) ---
-
-# Run at 8 AM every day
-0 8 * * * cd /volume2/docker/fusionsolar-extractor && docker compose run --rm fusionsolar-extractor >> /var/log/fusionsolar.log 2>&1
-
-
-# --- Manual override examples ---
-
-# Force PRE_BILLING alert right now (paste into terminal):
-#   FORCE_ALERT=PRE_BILLING docker compose run --rm fusionsolar-extractor
-
-# Force MID_CYCLE alert right now:
-#   FORCE_ALERT=MID_CYCLE docker compose run --rm fusionsolar-extractor
+# FusionSolar Weekly Report — schedule and manual triggers
+#
+# The container runs its own cron internally. You do NOT need a host crontab.
+# Schedule is controlled entirely by the CRON_SCHEDULE env var in .env.
+#
+# ---------------------------------------------------------------------------
+# Default schedule
+# ---------------------------------------------------------------------------
+# Every Friday at 8:00 AM (container time):
+#   CRON_SCHEDULE=0 8 * * 5
+#
+# Other examples:
+#   0 8 * * 1        # Every Monday at 8 AM
+#   0 8 * * 1,5      # Mondays AND Fridays at 8 AM
+#   0 8 1 * *        # 1st of every month at 8 AM
+#   */5 * * * *      # Every 5 minutes (debug / firehose only)
+#
+# After changing CRON_SCHEDULE in .env:
+#   docker compose up -d --force-recreate
+#
+# ---------------------------------------------------------------------------
+# Send a report RIGHT NOW (one-off, doesn't touch the running container)
+# ---------------------------------------------------------------------------
+#   docker compose run --rm fusionsolar-extractor python /app/extract_and_email.py
+#
+# ---------------------------------------------------------------------------
+# Send on next container start (e.g. after a rebuild)
+# ---------------------------------------------------------------------------
+# Set in .env:
+#   RUN_ON_START=true
+# Then:
+#   docker compose up -d --force-recreate
+# Remember to set RUN_ON_START=false afterwards or every restart will email.

@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
 """
-FusionSolar TNB Billing Alert System
-Fetches the full billing-cycle grid data (15th → today) and emails a summary.
-
-Alert schedule:
-  - Day 10–14  → PRE_BILLING alert (5 days before bill resets)
-  - Day 23+    → MID_CYCLE alert (monitor mid-cycle accumulation)
-
-Manual override: set FORCE_ALERT=PRE_BILLING or FORCE_ALERT=MID_CYCLE
+FusionSolar Weekly Solar Report
+Pulls billing-cycle grid data (billing_day -> today) and emails a summary.
+Designed to be invoked on a schedule (e.g. every Friday 8 AM by the container's cron).
 """
 
 import os
@@ -19,7 +14,7 @@ from pathlib import Path
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-# Load .env if present
+# Load .env if present (only matters when running outside the container)
 env_file = Path('.env')
 if env_file.exists():
     with open(env_file, 'r') as f:
@@ -84,7 +79,6 @@ class FusionSolarMonitor:
         await page.wait_for_load_state("domcontentloaded")
         await page.wait_for_timeout(3000)
 
-        # Dismiss popups
         for selector in [".close-btn", ".icon-close", "[class*='close']"]:
             try:
                 await page.locator(selector).first.click(timeout=2000)
@@ -129,11 +123,7 @@ class FusionSolarMonitor:
             return None
 
     async def get_cycle_data(self, start_date: datetime, end_date: datetime) -> list[dict]:
-        """
-        Returns a list of daily dicts for the date range [start_date, end_date].
-        Each dict: {'date': str, 'export': float, 'import': float}
-        """
-        logger.info(f"Fetching cycle data: {start_date.date()} → {end_date.date()}")
+        logger.info(f"Fetching cycle data: {start_date.date()} -> {end_date.date()}")
         results = []
 
         async with async_playwright() as p:
@@ -171,21 +161,32 @@ def _billing_cycle_bounds(billing_day: int) -> tuple[datetime, datetime]:
     return start, today
 
 
-def build_email_html(daily_data: list[dict], alert_type: str, billing_day: int = 15) -> str:
+def _days_until_next_reset(billing_day: int) -> int:
+    today = datetime.now()
+    if today.day < billing_day:
+        next_reset = datetime(today.year, today.month, billing_day)
+    elif today.month == 12:
+        next_reset = datetime(today.year + 1, 1, billing_day)
+    else:
+        next_reset = datetime(today.year, today.month + 1, billing_day)
+    return (next_reset.date() - today.date()).days
+
+
+def build_email_html(daily_data: list[dict], billing_day: int = 15) -> str:
     total_export = sum(d['export'] for d in daily_data)
     total_import = sum(d['import'] for d in daily_data)
     net_excess = (total_export - total_import) * 0.95
 
-    cycle_start = daily_data[0]['date'] if daily_data else '—'
-    cycle_end   = daily_data[-1]['date'] if daily_data else '—'
+    cycle_start = daily_data[0]['date'] if daily_data else '-'
+    cycle_end   = daily_data[-1]['date'] if daily_data else '-'
     days_count  = len(daily_data)
     now_str     = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    days_left   = _days_until_next_reset(billing_day)
 
-    # Daily rows for table
     rows_html = ""
     for d in daily_data:
         day_net = (d['export'] - d['import']) * 0.95
-        color = "#388e3c" if day_net > 0 else "#d32f2f"  # Green if excess, red if importing
+        color = "#388e3c" if day_net > 0 else "#d32f2f"
         rows_html += f"""
         <tr>
             <td style="padding:6px 10px;border-bottom:1px solid #eee;">{d['date']}</td>
@@ -194,55 +195,11 @@ def build_email_html(daily_data: list[dict], alert_type: str, billing_day: int =
             <td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;color:{color};font-weight:bold;">{day_net:+.2f}</td>
         </tr>"""
 
-    days_until_billing = billing_day - datetime.now().day if datetime.now().day < billing_day else (billing_day + 30 - datetime.now().day)
-
-    if alert_type == "PRE_BILLING":
-        header_color = "#d32f2f"
-        badge_bg = "#ffebee"
-        badge_text = f"⚠️ PRE-BILLING ALERT — {days_until_billing} Days Before Bill"
-        subtitle = f"Your billing cycle ends on the {billing_day}th. Turn on AC or high-consumption appliances to reduce excess storage penalty."
-        excess_color = "#388e3c" if net_excess > 0 else "#d32f2f"
-        tips_heading = f"Reduce Excess Before the {billing_day}th"
-        tips = [
-            "Turn on air conditioning",
-            "Run the washing machine / dryer",
-            "Turn on electric water heater",
-            "Charge electric vehicle (if available)",
-            "Leave appliances on during peak solar hours",
-        ]
-        cycle_note = f"Billing cycle resets on the {billing_day}th — excess carried over is penalised by TNB."
-    elif alert_type == "TEST":
-        header_color = "#5c6bc0"
-        badge_bg = "#e8eaf6"
-        badge_text = "🧪 TEST — Billing Cycle Summary"
-        subtitle = "Manual test run. This shows the current billing cycle data."
-        excess_color = "#388e3c" if net_excess > 0 else "#d32f2f"
-        tips_heading = "This is a Test Alert"
-        tips = [
-            "This was triggered manually via FORCE_ALERT=TEST",
-            "Data shown is real — pulled live from FusionSolar",
-            f"Billing cycle resets on the {billing_day}th of each month",
-        ]
-        cycle_note = f"Test alert sent {datetime.now().strftime('%Y-%m-%d %H:%M')}."
-    else:  # MID_CYCLE
-        header_color = "#e65100"
-        badge_bg = "#fff3e0"
-        badge_text = "📊 MID-CYCLE CHECK"
-        subtitle = "New billing cycle is underway. Monitor your accumulation to stay ahead of storage costs."
-        excess_color = "#1565c0" if net_excess > 0 else "#388e3c"
-        tips_heading = "Tips for the Rest of the Cycle"
-        tips = [
-            "Monitor daily export — if rising fast, increase consumption",
-            "Spread AC usage across the day",
-            "Avoid letting excess accumulate past RM 50 threshold",
-            f"Next penalty alert: {billing_day - 5}th of next month",
-        ]
-        cycle_note = f"You still have time to manage excess before the {billing_day}th billing date."
-
-    tips_html = "".join(f"<li style='margin-bottom:6px;'>{t}</li>" for t in tips)
-
-    net_label = "USE MORE ENERGY NOW 🔌" if net_excess > 0 else "YOU ARE NET IMPORTER ✓"
+    header_color = "#1565c0"
+    excess_color = "#388e3c" if net_excess > 0 else "#d32f2f"
+    net_label = "NET EXPORTER (excess to grid)" if net_excess > 0 else "NET IMPORTER (drawing from grid)"
     net_bg    = "#e8f5e9" if net_excess > 0 else "#e3f2fd"
+    cycle_note = f"Billing cycle resets on the {billing_day}th. {days_left} day(s) until next reset."
 
     return f"""<html xmlns="http://www.w3.org/1999/xhtml">
 <head><meta charset="utf-8" /></head>
@@ -252,8 +209,8 @@ def build_email_html(daily_data: list[dict], alert_type: str, billing_day: int =
 <table width="640" style="background:white;border-collapse:collapse;">
 <tr style="background:{header_color};color:white;">
 <td style="padding:24px 30px;">
-<h2 style="margin:0 0 8px 0;font-size:24px;color:white;">{badge_text}</h2>
-<p style="margin:0 0 4px 0;font-size:15px;color:rgba(255,255,255,0.9);">{subtitle}</p>
+<h2 style="margin:0 0 8px 0;font-size:24px;color:white;">Weekly Solar Report</h2>
+<p style="margin:0 0 4px 0;font-size:15px;color:rgba(255,255,255,0.9);">FusionSolar billing-cycle summary</p>
 <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.7);">Cycle: {cycle_start} to {cycle_end} ({days_count} days)</p>
 </td>
 </tr>
@@ -293,14 +250,12 @@ def build_email_html(daily_data: list[dict], alert_type: str, billing_day: int =
 </tr>
 <tr style="background:#f9f9f9;">
 <td style="padding:20px 30px;">
-<p style="margin:0 0 10px 0;font-size:13px;color:{header_color};font-weight:bold;">{tips_heading}</p>
-<ul style="margin:0;padding-left:18px;font-size:12px;color:#555;">{tips_html}</ul>
-<p style="margin:12px 0 0 0;font-size:12px;color:#777;">{cycle_note}</p>
+<p style="margin:0;font-size:12px;color:#777;">{cycle_note}</p>
 </td>
 </tr>
 <tr style="border-top:1px solid #ddd;">
 <td style="padding:15px 30px;text-align:center;font-size:11px;color:#999;">
-Automated alert from FusionSolar Monitor | {now_str}
+Automated weekly report from FusionSolar Monitor | {now_str}
 </td>
 </tr>
 </table>
@@ -327,7 +282,6 @@ class EmailAlert:
             msg['Subject'] = subject
             msg['From'] = self.sender_email
             msg['To'] = to_str
-            # Plain text must come first — prevents Gmail collapsing the HTML part
             msg.attach(MIMEText(body_text or subject, 'plain'))
             msg.attach(MIMEText(body_html, 'html'))
 
@@ -348,13 +302,13 @@ class EmailAlert:
 # ---------------------------------------------------------------------------
 
 async def main():
-    username      = os.getenv('FUSIONSOLAR_USERNAME')
-    password      = os.getenv('FUSIONSOLAR_PASSWORD')
-    email_pwd     = os.getenv('EMAIL_PASSWORD', '').replace(' ', '')  # strip spaces from app password
+    username       = os.getenv('FUSIONSOLAR_USERNAME')
+    password       = os.getenv('FUSIONSOLAR_PASSWORD')
+    email_pwd      = os.getenv('EMAIL_PASSWORD', '').replace(' ', '')
     station_id    = os.getenv('STATION_ID', '72289258')
-    billing_day   = int(os.getenv('BILLING_DAY', '15'))
+    billing_day    = int(os.getenv('BILLING_DAY', '15'))
     recipients_raw = os.getenv('RECIPIENT_EMAILS', '')
-    recipients    = [r.strip() for r in recipients_raw.split(',') if r.strip()]
+    recipients     = [r.strip() for r in recipients_raw.split(',') if r.strip()]
 
     if not all([username, password, email_pwd]):
         logger.error("Missing env vars: FUSIONSOLAR_USERNAME / FUSIONSOLAR_PASSWORD / EMAIL_PASSWORD")
@@ -364,39 +318,8 @@ async def main():
         logger.error("No recipients. Set RECIPIENT_EMAILS=a@b.com,c@d.com in .env")
         return False
 
-    # PRE_BILLING window: 5 days before billing_day (e.g. day 10–14 for billing_day=15)
-    pre_billing_start = billing_day - 5
-    mid_cycle_start   = billing_day + 8  # ~8 days after reset
-
-    # Determine alert type
-    force = os.getenv('FORCE_ALERT', '').upper()
-    today = datetime.now().day
-
-    if force in ('PRE_BILLING', 'MID_CYCLE', 'TEST'):
-        alert_type = force
-        logger.info(f"Manual override: FORCE_ALERT={alert_type}")
-    elif pre_billing_start <= today < billing_day:
-        alert_type = "PRE_BILLING"
-    elif today >= mid_cycle_start:
-        alert_type = "MID_CYCLE"
-    else:
-        logger.info(f"No alert scheduled for day {today} (billing day={billing_day}). Set FORCE_ALERT to override.")
-        return True
-
-    subject_map = {
-        "PRE_BILLING": f"⚠️ TNB Excess Energy — 5 Days Before Bill ({datetime.now().strftime('%B %d')})",
-        "MID_CYCLE":   f"📊 TNB Mid-Cycle Energy Check ({datetime.now().strftime('%B %d')})",
-        "TEST":        f"🧪 FusionSolar Test Alert ({datetime.now().strftime('%B %d')})",
-    }
-
-    # Date range: billing cycle start → today
-    # For TEST mode, allow custom start date via TEST_START_DATE=YYYY-MM-DD
-    if alert_type == "TEST" and os.getenv('TEST_START_DATE'):
-        cycle_start = datetime.strptime(os.getenv('TEST_START_DATE'), "%Y-%m-%d")
-        cycle_end = datetime.now()
-    else:
-        cycle_start, cycle_end = _billing_cycle_bounds(billing_day)
-    logger.info(f"Billing period: {cycle_start.date()} → {cycle_end.date()} (billing day={billing_day})")
+    cycle_start, cycle_end = _billing_cycle_bounds(billing_day)
+    logger.info(f"Billing period: {cycle_start.date()} -> {cycle_end.date()} (billing day={billing_day})")
 
     monitor = FusionSolarMonitor(username, password, station_id)
     daily_data = await monitor.get_cycle_data(cycle_start, cycle_end)
@@ -405,20 +328,21 @@ async def main():
         logger.error("No data retrieved for billing cycle")
         return False
 
-    body = build_email_html(daily_data, alert_type, billing_day)
+    body = build_email_html(daily_data, billing_day)
     emailer = EmailAlert(username, email_pwd)
     total_export = sum(d['export'] for d in daily_data)
     total_import = sum(d['import'] for d in daily_data)
     net_excess   = (total_export - total_import) * 0.95
+    subject = f"Weekly Solar Report - {datetime.now().strftime('%B %d, %Y')}"
     plain_text = (
-        f"{subject_map[alert_type]}\n\n"
+        f"{subject}\n\n"
         f"Billing cycle: {cycle_start.date()} to {cycle_end.date()}\n\n"
         f"NET EXCESS (after 5% loss): {net_excess:+.2f} kWh\n"
         f"Total Exported: {total_export:.2f} kWh\n"
         f"Total Imported: {total_import:.2f} kWh\n\n"
         f"Sent: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     )
-    return emailer.send(recipients, subject_map[alert_type], body, plain_text)
+    return emailer.send(recipients, subject, body, plain_text)
 
 
 if __name__ == "__main__":

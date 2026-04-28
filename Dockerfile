@@ -3,6 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
+    cron \
     wget ca-certificates fonts-liberation \
     libasound2 libatk-bridge2.0-0 libatk1.0-0 libcups2 libdbus-1-3 \
     libexpat1 libfontconfig1 libgbm1 libgcc1 libglib2.0-0 libgtk-3-0 \
@@ -18,7 +19,8 @@ RUN pip install --no-cache-dir -r requirements.txt && playwright install chromiu
 COPY extract_and_email.py .
 COPY extract_solar_browser.py .
 COPY entrypoint.sh .
-RUN chmod +x entrypoint.sh
+COPY run_report.sh .
+RUN chmod +x entrypoint.sh run_report.sh
 
 RUN mkdir -p /data
 ENV PYTHONUNBUFFERED=1

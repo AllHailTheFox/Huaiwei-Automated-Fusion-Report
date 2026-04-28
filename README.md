@@ -1,6 +1,6 @@
-# FusionSolar TNB Billing Alert
+# FusionSolar Weekly Solar Report
 
-Automated email alerts to help reduce TNB (Tenaga Nasional Berhad) excess energy storage penalties for Huawei FusionSolar solar installations in Malaysia.
+Automated weekly email summary of your Huawei FusionSolar billing-cycle grid data — designed for Malaysian TNB billing cycles where excess exported energy is penalised.
 
 ## How it works
 
@@ -10,14 +10,7 @@ TNB bills on a fixed day each month (default: **15th**). If you export more ener
 2. Calculates cumulative net excess with a **5% heat-loss deduction**
 3. Emails a summary with a **daily breakdown table** to all configured recipients
 
-**Two alerts fire automatically:**
-
-| Day of Month | Alert | Purpose |
-|---|---|---|
-| 5 days before bill date | PRE_BILLING | Turn on AC / high-consumption appliances |
-| 8 days after bill date | MID_CYCLE | Monitor mid-cycle accumulation |
-
-You can also trigger any alert manually at any time.
+The container runs its own cron internally and fires the report on a schedule you control via `CRON_SCHEDULE` (default: every Friday at 8 AM). You can also trigger a report manually any time.
 
 ---
 
@@ -31,7 +24,7 @@ cd Huaiwei-Automated-Fusion-Report
 cp .env.example .env
 ```
 
-Edit `.env` and fill in your values:
+Edit `.env`:
 
 ```env
 FUSIONSOLAR_USERNAME=your_fusionsolar_email@gmail.com
@@ -40,6 +33,8 @@ EMAIL_PASSWORD=xxxxxxxxxxxxxxxxxxxx
 RECIPIENT_EMAILS=you@gmail.com,partner@yahoo.com
 STATION_ID=72289258
 BILLING_DAY=15
+CRON_SCHEDULE=0 8 * * 5
+RUN_ON_START=false
 ```
 
 ### 2. Generate a Gmail App Password
@@ -58,28 +53,55 @@ Your normal Gmail password **will not work**. You need an **App Password**:
 
 ```bash
 docker compose build
-docker compose run --rm fusionsolar-extractor
+docker compose up -d
 ```
+
+The container will stay up running cron internally and fire the report on schedule.
 
 ---
 
 ## Manual Triggers
 
-Force an alert regardless of what day it is:
+### Fire a report right now (one-off)
 
 ```bash
-# 5-days-before-bill alert
-FORCE_ALERT=PRE_BILLING docker compose run --rm fusionsolar-extractor
-
-# Mid-cycle check alert
-FORCE_ALERT=MID_CYCLE docker compose run --rm fusionsolar-extractor
-
-# Test alert — shows current billing cycle data (good for first-time testing)
-FORCE_ALERT=TEST docker compose run --rm fusionsolar-extractor
-
-# Test with a custom date range (from April 1st to today)
-FORCE_ALERT=TEST TEST_START_DATE=2026-04-01 docker compose run --rm fusionsolar-extractor
+docker compose run --rm fusionsolar-extractor python /app/extract_and_email.py
 ```
+
+This spins up a temporary container, runs the script once, sends the email, and exits. Does not affect the running scheduled container.
+
+### Fire a report on next container start
+
+Set in `.env`:
+
+```env
+RUN_ON_START=true
+```
+
+Then:
+
+```bash
+docker compose up -d --force-recreate
+```
+
+After it sends, **flip `RUN_ON_START` back to `false`** — otherwise every container restart will trigger another email.
+
+### Change the schedule
+
+Edit `CRON_SCHEDULE` in `.env` (standard 5-field cron syntax), then:
+
+```bash
+docker compose up -d --force-recreate
+```
+
+Examples:
+
+| Schedule | Cron |
+|---|---|
+| Every Friday 8 AM | `0 8 * * 5` |
+| Every Monday 8 AM | `0 8 * * 1` |
+| Mondays and Fridays 8 AM | `0 8 * * 1,5` |
+| 1st of every month 8 AM | `0 8 1 * *` |
 
 ---
 
@@ -95,40 +117,31 @@ All settings live in your `.env` file:
 | `RECIPIENT_EMAILS` | Yes | — | Comma-separated list of recipients |
 | `STATION_ID` | Yes | `72289258` | From your FusionSolar monitoring URL |
 | `BILLING_DAY` | No | `15` | Day of month your bill resets |
-| `FORCE_ALERT` | No | _(auto)_ | `PRE_BILLING`, `MID_CYCLE`, or `TEST` |
-| `TEST_START_DATE` | No | _(cycle start)_ | Custom start date for TEST mode (`YYYY-MM-DD`) |
+| `CRON_SCHEDULE` | No | `0 8 * * 5` | When to send the report (cron syntax) |
+| `RUN_ON_START` | No | `false` | If `true`, sends a report when the container starts |
 
 ---
 
 ## NAS / Server Deployment (Synology / Linux)
 
-### Copy files to your NAS
+Copy files to your NAS, build, and start:
 
 ```bash
 scp -r . user@your-nas-ip:/volume2/docker/fusionsolar-extractor/
-```
-
-### Build the image on the NAS
-
-```bash
 ssh user@your-nas-ip
 cd /volume2/docker/fusionsolar-extractor
 docker compose build
+docker compose up -d
 ```
 
-### Set up cron (runs daily at 8 AM, script auto-decides if alert is needed)
+You do **not** need a host crontab — the container schedules itself via `CRON_SCHEDULE`.
+
+To verify it's running cleanly:
 
 ```bash
-crontab -e
+docker ps | grep fusion         # should show "Up X minutes"
+docker logs fusionsolar-extractor   # should show "Cron started, schedule: ..."
 ```
-
-Add:
-
-```
-0 8 * * * cd /volume2/docker/fusionsolar-extractor && docker compose run --rm fusionsolar-extractor >> /var/log/fusionsolar.log 2>&1
-```
-
-See `crontab.example` for more scheduling options.
 
 ---
 
@@ -148,25 +161,26 @@ Your `STATION_ID` is in the FusionSolar monitoring URL:
 
 | File | Purpose |
 |---|---|
-| `extract_and_email.py` | Main script — fetches full cycle data and sends email |
+| `extract_and_email.py` | Main script — fetches cycle data and sends email |
 | `extract_solar_browser.py` | Standalone CSV exporter for any date range |
+| `entrypoint.sh` | Container entry point — installs cron job, runs cron in foreground |
+| `run_report.sh` | Wrapper invoked by cron (sources env, runs Python script) |
 | `Dockerfile` | Container definition |
 | `docker-compose.yml` | Docker Compose config |
-| `entrypoint.sh` | Container entry point |
 | `requirements.txt` | Python dependencies |
 | `.env.example` | Configuration template |
-| `crontab.example` | Cron schedule examples |
+| `crontab.example` | Schedule examples and manual-trigger reference |
 
 ---
 
 ## Email Preview
 
-The alert email includes:
+The report email includes:
 
-- **Summary cards** — total exported, total imported, net excess for the full billing cycle
-- **Daily breakdown table** — per-day export / import / net values colour-coded (red = excess, green = net importer)
-- **Action tips** — what to do to reduce penalty
-- Billing date is shown dynamically based on your `BILLING_DAY` setting
+- **Summary card** — net excess after 5% loss for the current billing cycle
+- **Total exported / imported** — raw kWh totals
+- **Daily breakdown table** — per-day export / import / net values, colour-coded
+- **Days until next reset** — based on your `BILLING_DAY`
 
 ---
 
