@@ -8,6 +8,19 @@ Currently works with **Huawei FusionSolar** (the most common solar inverter plat
 
 ---
 
+## 👋 Quick Check: "Hey, what's my excess right now?"
+
+If you just want a quick answer without any setup fuss:
+
+| Your setup | One command |
+|---|---|
+| **Already ran setup once before** | `bash Get_today_stats` |
+| **Fresh install, never used this** | See below — pick a path |
+
+That's it. One command, no Docker, no waiting for email. The table prints right in your terminal.
+
+---
+
 ## 📖 What does it actually do?
 
 Every month, your electricity retailer measures your **export** (power you sent back to the grid) and your **import** (power you took from the grid). Your bill resets on a fixed day — for example, the **15th** of every month.
@@ -19,263 +32,229 @@ This tool:
 3. **Deducts a small percentage for heat loss** (default 5%) — because some power is lost as heat in the cables, and your retailer only pays you for what actually reaches the grid
 4. **Emails you a clean summary** with a day-by-day breakdown
 
-You can also preview the report in your terminal without sending an email — handy for a quick check.
-
 ---
 
-## 🚀 Two Ways to Run This
-
-There are two ways to use this tool. Pick whichever feels easier:
+## 🚀 Two Ways to Use This
 
 | Method | What you need | Good for |
 |---|---|---|
-| **🐳 Docker** (recommended) | Docker installed on your computer or NAS | Set it once, forget it — runs automatically on a schedule |
-| **💻 Direct (no Docker)** | Python 3.11+ installed | If you don't want to install Docker, or just want to try it out |
+| **💻 Direct** | Python 3.11+ installed | Quick checks (`bash Get_today_stats`), trying it out |
+| **🐳 Docker** | Docker installed on your NAS or computer | Automated weekly emails, set-and-forget |
 
-Don't worry if you don't know what Docker or Python is — the instructions below walk you through everything.
+You can run **both** at the same time — Docker handles the weekly email, and you use `bash Get_today_stats` for quick checks whenever you want.
 
 ---
 
-## 🐳 Option 1: Docker (Easiest — Recommended)
+## 💻 Option 1: Direct (Quick Checks & Testing)
 
-Docker is like a little pre-packed lunchbox that contains everything the tool needs to run. You don't need to install Python or any libraries — Docker handles all of that.
+Best for: "Hey, what's the number right now?" without opening any app.
 
-### Step 1: Install Docker
+### Step 1: Install Python
 
-- **Windows / Mac:** Download Docker Desktop from [docker.com](https://www.docker.com/products/docker-desktop/) and install it (just click Next through the installer)
-- **Synology NAS:** Open **Package Center** → search for "Docker" → Install
-- **UGREEN NAS:** Open the **App Manager** → search for "Docker" → Install
-- **Other NAS (QNAP, Asustor, etc.):** Check your NAS app store for "Docker" or "Container Manager" — most modern NAS have it built-in
-- **Linux (Ubuntu/Debian):** Open a terminal and paste:
-  ```bash
-  sudo apt install docker.io docker-compose
-  ```
+> **Already have Python 3.11+? Skip to Step 2.**
+
+- **Windows / Mac:** Download from [python.org](https://www.python.org/downloads/) and install. **Check "Add Python to PATH" during setup.**
+- **Linux (Ubuntu/Debian):** `sudo apt install python3 python3-pip`
+- **UGREEN / Synology NAS:** Python might already be installed. Check with `python3 --version`.
 
 ### Step 2: Get the code
-
-Open a terminal (Command Prompt on Windows, Terminal on Mac/Linux) and run:
 
 ```bash
 git clone https://github.com/AllHailTheFox/Huaiwei-Automated-Fusion-Report.git
 cd Huaiwei-Automated-Fusion-Report
 ```
 
-> If `git` gives you an error, you can also download the code as a ZIP file from the GitHub page and extract it.
+> No `git`? Download the ZIP from GitHub and unzip it.
 
-### Step 3: Create your configuration file
+### Step 3: Install dependencies (one time only)
 
-Copy the example configuration to create your own:
+```bash
+pip3 install -r requirements.txt
+python3 -m playwright install chromium
+```
+
+> The second command installs a small browser that the tool uses to log into FusionSolar. This is the biggest download (~200MB) — only needed once.
+
+### Step 4: Create your config file
+
+Copy and fill in your details:
 
 ```bash
 cp .env.example .env
 ```
 
-Now open the `.env` file in any text editor (Notepad, TextEdit, VS Code). You'll see something like this:
-
-```env
-FUSIONSOLAR_USERNAME=your_fusionsolar_email@gmail.com
-FUSIONSOLAR_PASSWORD=your_fusionsolar_password
-FUSIONSOLAR_BASE_URL=https://intl.fusionsolar.huawei.com
-EMAIL_PASSWORD=xxxxxxxxxxxxxxxxxxxx
-RECIPIENT_EMAILS=you@gmail.com,partner@yahoo.com
-SITE_ID=72289258
-BILLING_DAY=15
-HEAT_LOSS_PERCENT=5
-CRON_SCHEDULE=0 8 * * 5
-RUN_ON_START=false
-```
-
-Here's what each setting means:
+Open `.env` in any text editor (nano, vim, Notepad). Here's what each setting means:
 
 | Setting | What to put there |
 |---|---|
-| `FUSIONSOLAR_USERNAME` | The email address you use to log into FusionSolar |
-| `FUSIONSOLAR_PASSWORD` | The password you use to log into FusionSolar |
-| `FUSIONSOLAR_BASE_URL` | Your FusionSolar portal address. The default works for most users (international portal). If you use a regional portal (e.g. `https://eu5.fusionsolar.huawei.com`), change it here. |
-| `EMAIL_PASSWORD` | **Not your normal Gmail password!** See Step 4 below to generate a special App Password |
-| `RECIPIENT_EMAILS` | Who should receive the report? Separate multiple emails with commas |
-| `SITE_ID` | Your solar installation ID — see "Finding Your Site ID" below |
-| `BILLING_DAY` | The day of the month your electricity bill resets (most people: 15) |
-| `HEAT_LOSS_PERCENT` | How much your electricity retailer deducts for cable heat loss. If unsure, leave at 5 |
-| `CRON_SCHEDULE` | When to send the report automatically. Leave as-is for every Friday 8 AM (see "Changing the Schedule" below) |
-| `RUN_ON_START` | Keep this as `false` for now |
+| `FUSIONSOLAR_USERNAME` | Your FusionSolar login email |
+| `FUSIONSOLAR_PASSWORD` | Your FusionSolar password |
+| `FUSIONSOLAR_BASE_URL` | Portal address. Default works for most users. Change if you use a regional portal (e.g. `https://eu5.fusionsolar.huawei.com`) |
+| `EMAIL_PASSWORD` | See **"Getting a Gmail App Password"** below |
+| `RECIPIENT_EMAILS` | Who gets the email? Separate multiple with commas |
+| `SITE_ID` | Your installation ID — see **"Finding Your Site ID"** below |
+| `BILLING_DAY` | Day your electricity bill resets (default: 15) |
+| `HEAT_LOSS_PERCENT` | Heat loss % your retailer deducts. If unsure, leave at 5 |
+| `CRON_SCHEDULE` | When to auto-send (Docker only). Default: every Fri 8 AM |
+| `RUN_ON_START` | Leave as `false` for now |
 
 > **Tip:** The `.env` file is like a settings card. Keep it safe — it contains your passwords.
 
-### Step 4: Create a Gmail App Password
+### Step 5: Getting a Gmail App Password
 
-This is the trickiest part. Gmail won't let this tool use your regular password for security reasons. You need to create a special **App Password** just for this tool.
+This is the trickiest part. Gmail won't let this tool use your regular password for security reasons. You need a special **App Password**:
 
 1. Go to [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
-2. If asked, log into your Gmail account
+2. Sign into your Gmail account
 3. Under "Select app", choose **Mail**
 4. Under "Select device", choose **Other (Custom name)** — type "Solar Report"
 5. Click **Generate**
-6. Google will show you a **16-character password** that looks like: `abcd efgh ijkl mnop`
+6. Google shows a **16-character password** like: `abcd efgh ijkl mnop`
 
-**Important:** Copy the password exactly as shown, but **remove the spaces**. In the example above, you'd put `abcdefghijklmnop` (all one word, no spaces). Paste it into the `EMAIL_PASSWORD` field in your `.env` file.
+**Important:** Copy it exactly, but **remove the spaces**. So `abcd efgh ijkl mnop` becomes `abcdefghijklmnop`. Paste into `EMAIL_PASSWORD` in `.env`.
 
-> **Don't have App Passwords as an option?** You need to enable **2-Step Verification** on your Google account first. Go to [myaccount.google.com/security](https://myaccount.google.com/security) and turn on "2-Step Verification". Then come back to this step.
+> **No App Passwords option?** Enable **2-Step Verification** first at [myaccount.google.com/security](https://myaccount.google.com/security), then come back.
 
-### Step 5: Find your Site ID
+### Step 6: Find your Site ID
 
-Your `SITE_ID` is a number that identifies your solar installation. Here's how to find it:
+1. Log into [FusionSolar](https://intl.fusionsolar.huawei.com)
+2. Click your installation to open the dashboard
+3. Look at the web address — you'll see: `.../view/station/NE=72289258/overview`
 
-1. Log into [FusionSolar](https://intl.fusionsolar.huawei.com) in your web browser
-2. Click on your installation to open the monitoring dashboard
-3. Look at the web address (URL) in your browser's address bar
-4. You'll see something like: `.../view/station/NE=72289258/overview`
+The number after `NE=` is your Site ID. Put it in `SITE_ID` in `.env`.
 
-The number after `NE=` is your Site ID. In this example: `72289258`
+### Step 7: Run it
 
-Put that number into the `SITE_ID` field in your `.env` file.
+```bash
+# Quick preview (no email)
+bash Get_today_stats
 
-### Step 6: Build and start
+# Or the long way:
+bash run.sh --preview
 
-In your terminal, run:
+# Send an email report:
+bash run.sh
+```
+
+No `chmod +x` needed — `bash` prefix works as-is.
+
+---
+
+## 🐳 Option 2: Docker (Automated Weekly Emails)
+
+Best for: "Email me every Friday without me touching anything."
+
+Docker is like a pre-packed lunchbox — everything the tool needs is inside. You don't install Python or libraries on your NAS.
+
+### Step 1: Install Docker
+
+- **Windows / Mac:** Download [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- **UGREEN NAS:** Open **App Manager** → search "Docker" → Install
+- **Synology NAS:** Open **Package Center** → search "Docker" → Install
+- **Other NAS (QNAP, Asustor):** Check your app store for "Docker" or "Container Manager"
+- **Linux:** `sudo apt install docker.io docker-compose`
+
+### Step 2: Get the code & configure
+
+```bash
+git clone https://github.com/AllHailTheFox/Huaiwei-Automated-Fusion-Report.git
+cd Huaiwei-Automated-Fusion-Report
+cp .env.example .env
+```
+
+Then fill in `.env` exactly as described in **Steps 4-6** above (App Password, Site ID, etc.).
+
+### Step 3: Build and start
 
 ```bash
 docker compose build
 docker compose up -d
 ```
 
-The first build takes a minute or two as it downloads the necessary components. After that, the tool is running in the background and will email you every Friday at 8 AM.
+The first build takes a minute or two. After that, the container runs in the background and emails you automatically based on your `CRON_SCHEDULE` (default: every Friday 8 AM).
 
-**To test it right now**, run:
+### Step 4: Trigger an email right now
 
-```bash
-bash run.sh
-```
-> Or if you're on Windows: `docker compose run --rm fusionsolar-extractor python /app/main.py`
-
-You should receive an email within a minute or two.
-
----
-
-## 💻 Option 2: Direct (No Docker)
-
-If you already have Python installed or don't want to use Docker, you can run the tool directly.
-
-### Step 1: Install Python
-
-> **Already have Python? Skip to Step 2.**
-
-- **Windows / Mac:** Download Python from [python.org](https://www.python.org/downloads/) and install it. **Important:** during installation, check the box that says **"Add Python to PATH"**
-- **Linux:** Python is usually already installed. To check, open a terminal and type: `python3 --version`
-
-### Step 2: Get the code and set up
-
-Open a terminal and run:
-
-```bash
-git clone https://github.com/AllHailTheFox/Huaiwei-Automated-Fusion-Report.git
-cd Huaiwei-Automated-Fusion-Report
-```
-
-> Don't have `git`? Download the code as a ZIP from the GitHub page and unzip it.
-
-Install the required libraries:
-
-```bash
-pip install -r requirements.txt
-playwright install chromium
-```
-
-The second command installs a web browser (Chromium) that the tool uses to log into FusionSolar and read your data.
-
-### Step 3: Create your `.env` file
-
-Same as **Step 3** in the Docker section above — copy `.env.example` to `.env`, then fill in your details.
-
-### Step 4: Get a Gmail App Password
-
-Same as **Step 4** in the Docker section above.
-
-### Step 5: Find your Site ID
-
-Same as **Step 5** in the Docker section above.
-
-### Step 6: Run it
-
-**Preview the report (no email sent):**
-```bash
-bash run.sh --preview
-```
-You'll see a table in your terminal showing your daily export/import data. Great for a quick sanity check.
-
-**Send the email report:**
-```bash
-bash run.sh
-```
-
-There's also a shortcut for the preview:
-```bash
-bash Get_today_stats
-```
-
-> **Tip:** The `bash` prefix works on all systems (Windows, Mac, Linux) and doesn't require any special permissions. If you're on Linux, `./run.sh --preview` also works.
-
----
-
-## 🤖 Setting It Up to Run Automatically (Cron)
-
-Once you've tested it and it works, you can set it to run automatically every week.
-
-### If you're using Docker
-
-The Docker container runs its own internal schedule — you don't need to do anything extra. It uses the `CRON_SCHEDULE` setting from your `.env` file (default: every Friday at 8 AM).
-
-To change when it runs, edit `CRON_SCHEDULE` in `.env`, then restart the container:
+Change `RUN_ON_START` to `true` in `.env`, then restart:
 
 ```bash
 docker compose up -d --force-recreate
 ```
 
-### If you're running directly (no Docker)
+The container sends a report immediately on startup, then continues on its regular schedule.
 
-You'll use your computer's built-in scheduler called **cron**. Open a terminal and type:
+**Don't forget to flip `RUN_ON_START` back to `false` afterwards,** or it'll email you every time the NAS reboots (power outage, update, etc.).
+
+---
+
+## 🔧 Everyday Usage
+
+| What you want | Command |
+|---|---|
+| **Quick check — what's my excess?** | `bash Get_today_stats` |
+| **Send email now (direct mode)** | `bash run.sh` |
+| **Send email now (Docker mode)** | Set `RUN_ON_START=true` → `docker compose up -d --force-recreate` |
+| **Check if Docker container is running** | `docker ps \| grep fusion` |
+| **See what the container is doing** | `docker logs fusionsolar-extractor` |
+| **See last 20 lines of logs** | `docker logs fusionsolar-extractor --tail 20` |
+| **Clean up old stopped containers** | `docker container prune -f` |
+| **Stop the Docker container** | `docker compose down` |
+| **Restart after config change** | `docker compose up -d --force-recreate` |
+
+---
+
+## 🤖 Setting Up Automatic Weekly Emails
+
+### Docker mode (already automatic)
+
+The container runs its own internal cron using your `CRON_SCHEDULE` setting. That's it — nothing else to do.
+
+To change the schedule, edit `CRON_SCHEDULE` in `.env`, then restart:
+```bash
+docker compose up -d --force-recreate
+```
+
+Examples:
+
+| Schedule | `CRON_SCHEDULE` value |
+|---|---|
+| Every Friday 8 AM | `0 8 * * 5` |
+| Every Monday 8 AM | `0 8 * * 1` |
+| Friday + Saturday + Sunday 8 AM | `0 8 * * 5,6,0` |
+| 1st of every month 8 AM | `0 8 1 * *` |
+
+### Direct mode (Linux cron)
 
 ```bash
 crontab -e
 ```
 
-If this is your first time, it might ask you to pick an editor — choose **nano** (the easiest one).
-
-Add this line (replace `/path/to/folder` with the actual path to your project folder):
-
+Add this line (replace the path):
 ```
 0 8 * * 5 cd /path/to/Huaiwei-Automated-Fusion-Report && bash run.sh >> report.log 2>&1
 ```
-
-This tells your computer: "Every Friday at 8 AM, go to the project folder and run the report. Save any messages to a file called report.log."
-
-Save and exit (in nano: `Ctrl+X`, then `Y`, then `Enter`).
-
----
-
-## 🧪 Quick Reference: All Commands in One Place
-
-| What you want to do | Command |
-|---|---|
-| Preview report | `bash run.sh --preview` or `bash Get_today_stats` |
-| Send report now | `bash run.sh` |
-| Set up automatic weekly report | See "Setting It Up to Run Automatically" above |
 
 ---
 
 ## ❓ Common Questions
 
+**Q: The `bash Get_today_stats` says "python: command not found"**
+A: Your system might use `python3`. Install Python if missing, then run the one-time setup: `pip3 install -r requirements.txt && python3 -m playwright install chromium`
+
 **Q: The email never arrived!**
-A: Check your spam folder. If it's not there, run `bash run.sh` and watch for error messages. The most common issue is the App Password — make sure there are no spaces in it.
+A: Check spam. If not there, run `docker logs fusionsolar-extractor` (Docker) or `bash run.sh` (direct) and watch for errors. Most common: App Password has spaces in it.
 
 **Q: The preview shows "No data"**
-A: Make sure your `FUSIONSOLAR_BASE_URL` is correct. If you use a regional portal (like `eu5.fusionsolar.huawei.com`), the default URL won't work.
+A: Check your `FUSIONSOLAR_BASE_URL`. If you use a regional portal (like `eu5.fusionsolar.huawei.com`), the default URL won't work.
 
 **Q: What's the heat loss thing?**
-A: When electricity travels through cables, some of it turns into heat and is lost. Your electricity retailer only pays you for the power that actually reaches the grid, not what leaves your inverter. This percentage varies by country — 5% is a common default. Your retailer can tell you the exact number.
+A: When electricity travels through cables, some turns into heat and is lost. Your retailer only pays for what reaches the grid. 5% is a common default.
 
 **Q: Can I send the report to multiple people?**
-A: Yes! In `RECIPIENT_EMAILS`, separate emails with commas: `you@gmail.com,your.partner@gmail.com`
+A: Yes — separate emails with commas: `you@gmail.com,partner@gmail.com`
+
+**Q: Why does `docker compose run --rm` show "Cron started"?**
+A: Because `docker compose run` runs the container's entrypoint, which starts cron. That command is meant for testing inside the running container. For one-off emails, use `RUN_ON_START=true` instead.
 
 ---
 
@@ -283,36 +262,34 @@ A: Yes! In `RECIPIENT_EMAILS`, separate emails with commas: `you@gmail.com,your.
 
 | File | What it does |
 |---|---|
-| `main.py` | The main program — fetches your solar data and sends the email |
-| `run.sh` | A helper that loads your settings from `.env` and runs `main.py` |
-| `Get_today_stats` | Shortcut to preview the report |
-| `.env` | Your settings (username, password, etc.) — keep this safe! |
-| `.env.example` | A blank template to copy when setting up |
-| `scripts/extract_solar_browser.py` | A separate tool to export data as a CSV file (for spreadsheet nerds) |
-| `Dockerfile` + `docker-compose.yml` | Settings for the Docker version |
-| `entrypoint.sh` + `run_report.sh` | Internal helpers for the Docker version |
-| `requirements.txt` | A shopping list of Python libraries this tool needs |
-| `crontab.example` | Examples of different schedule times |
+| `main.py` | The main program — fetches solar data and sends the email |
+| `run.sh` | Helper that loads `.env` and runs `main.py` |
+| `Get_today_stats` | Shortcut for `bash run.sh --preview` |
+| `.env` | Your settings (passwords, etc.) — keep safe! |
+| `.env.example` | Blank template to copy |
+| `src/` | The brains of the operation (config, scraper, email builder, email sender) |
+| `scripts/extract_solar_browser.py` | Standalone tool to export data as CSV |
+| `Dockerfile` + `docker-compose.yml` | Docker build and run settings |
+| `entrypoint.sh` + `run_report.sh` | Docker internal scripts |
+| `requirements.txt` | Python library list |
+| `crontab.example` | Schedule examples |
 
 ---
 
 ## 📄 What the email looks like
 
-The email contains:
+- **Net surplus** for the current billing period (after heat loss)
+- **Total exported / imported** in kWh
+- **Day-by-day table** — export, import, net (green = surplus, red = deficit)
+- **Days until next billing reset**
 
-- **A summary at the top** — your net surplus (or deficit) for the current billing period
-- **Total exported and imported** — the raw numbers in kWh
-- **A day-by-day table** — how much you exported, imported, and your net for each day
-- **Colour coding** — green for surplus days, red for deficit days
-- **Days until next billing reset** — so you know how much of the billing period is left
-
-The console preview (`--preview`) shows the same information as a table in your terminal.
+Console preview (`--preview`) shows the same table in your terminal.
 
 ---
 
-## 🛠 Requirements (the technical stuff)
+## 🛠 Requirements
 
+- **Direct mode:** Python 3.11+ + `playwright install chromium`
 - **Docker mode:** Docker Engine with Compose (or Docker Desktop)
-- **Direct mode:** Python 3.11 or newer + `playwright install chromium`
-- **Email:** A Gmail account with 2-Step Verification and an App Password
-- **Solar account:** A Huawei FusionSolar (or compatible) portal login
+- **Email:** Gmail account with 2-Step Verification + App Password
+- **Solar account:** Huawei FusionSolar (or compatible) portal login
