@@ -8,15 +8,15 @@ fi
 
 CRON_SCHEDULE="${CRON_SCHEDULE:-0 8 * * 5}"
 
-# Cron strips the environment, so persist current env vars to /etc/environment
-# (run_report.sh will source these before invoking python).
 {
     echo "FUSIONSOLAR_USERNAME=${FUSIONSOLAR_USERNAME}"
     echo "FUSIONSOLAR_PASSWORD=${FUSIONSOLAR_PASSWORD}"
+    echo "FUSIONSOLAR_BASE_URL=${FUSIONSOLAR_BASE_URL:-https://intl.fusionsolar.huawei.com}"
     echo "EMAIL_PASSWORD=${EMAIL_PASSWORD}"
     echo "RECIPIENT_EMAILS=${RECIPIENT_EMAILS}"
-    echo "STATION_ID=${STATION_ID:-72289258}"
+    echo "SITE_ID=${SITE_ID:-72289258}"
     echo "BILLING_DAY=${BILLING_DAY:-15}"
+    echo "HEAT_LOSS_PERCENT=${HEAT_LOSS_PERCENT:-5}"
     echo "OUTPUT_DIR=${OUTPUT_DIR:-/data}"
     echo "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 } > /etc/environment

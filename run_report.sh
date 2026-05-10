@@ -10,5 +10,5 @@ fi
 
 cd /app
 echo "[$(date)] Running scheduled FusionSolar report..."
-python /app/extract_and_email.py
+python /app/main.py
 echo "[$(date)] Report run finished."

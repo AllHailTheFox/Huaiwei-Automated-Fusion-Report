@@ -7,15 +7,13 @@ services:
     environment:
       FUSIONSOLAR_USERNAME: ${FUSIONSOLAR_USERNAME}
       FUSIONSOLAR_PASSWORD: ${FUSIONSOLAR_PASSWORD}
+      FUSIONSOLAR_BASE_URL: ${FUSIONSOLAR_BASE_URL:-https://intl.fusionsolar.huawei.com}
       EMAIL_PASSWORD: ${EMAIL_PASSWORD}
       RECIPIENT_EMAILS: ${RECIPIENT_EMAILS}
-      STATION_ID: ${STATION_ID:-72289258}
-      # Day of month the bill resets (default: 15)
+      SITE_ID: ${SITE_ID:-72289258}
       BILLING_DAY: ${BILLING_DAY:-15}
-      # Cron schedule (default: every Friday at 8 AM). Standard 5-field cron syntax.
+      HEAT_LOSS_PERCENT: ${HEAT_LOSS_PERCENT:-5}
       CRON_SCHEDULE: ${CRON_SCHEDULE:-0 8 * * 5}
-      # Set to "true" to fire one report immediately when the container starts
-      # (useful for testing). Remember to flip back to "false" afterwards.
       RUN_ON_START: ${RUN_ON_START:-false}
       OUTPUT_DIR: /data
     volumes:

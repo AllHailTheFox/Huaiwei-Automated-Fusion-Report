@@ -16,8 +16,9 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && playwright install chromium
 
-COPY extract_and_email.py .
-COPY extract_solar_browser.py .
+COPY main.py .
+COPY src/ /app/src/
+COPY scripts/ /app/scripts/
 COPY entrypoint.sh .
 COPY run_report.sh .
 RUN chmod +x entrypoint.sh run_report.sh

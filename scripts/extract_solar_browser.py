@@ -8,6 +8,7 @@ import os
 import csv
 import logging
 import asyncio
+import argparse
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -116,10 +117,10 @@ class FusionSolarScraper:
         except:
             pass
 
-    async def navigate_to_monitoring(self, station_id):
+    async def navigate_to_monitoring(self, site_id):
         """Navigate to station monitoring page"""
         try:
-            monitor_url = f"{self.base_url}/uniportal/pvmswebsite/assets/build/cloud.html?app-id=smartpvms&instance-id=smartpvms&zone-id=c307b3ac-14c6-4c45-8549-1b342f85a3f1#/view/station/NE={station_id}/overview"
+            monitor_url = f"{self.base_url}/uniportal/pvmswebsite/assets/build/cloud.html?app-id=smartpvms&instance-id=smartpvms&zone-id=c307b3ac-14c6-4c45-8549-1b342f85a3f1#/view/station/NE={site_id}/overview"
             logger.info(f"Navigating to monitoring page...")
             await self.page.goto(monitor_url, wait_until="networkidle")
             await self.page.wait_for_load_state("domcontentloaded")
@@ -188,7 +189,7 @@ class FusionSolarScraper:
             traceback.print_exc()
             return None
 
-    async def extract_billing_cycle(self, start_date, end_date, station_id="72289258"):
+    async def extract_billing_cycle(self, start_date, end_date, site_id="72289258"):
         """Extract data for entire billing cycle"""
         try:
             async with async_playwright() as p:
@@ -201,7 +202,7 @@ class FusionSolarScraper:
                     return None
 
                 # Navigate to monitoring
-                if not await self.navigate_to_monitoring(station_id):
+                if not await self.navigate_to_monitoring(site_id):
                     return None
 
                 # Extract data for each day
@@ -229,8 +230,13 @@ class FusionSolarScraper:
 
 async def main():
     """Main extraction function"""
+    parser = argparse.ArgumentParser(description="FusionSolar CSV exporter")
+    parser.add_argument('--site-id', default=None, help="Override SITE_ID from env")
+    args = parser.parse_args()
+
     username = os.getenv('FUSIONSOLAR_USERNAME')
     password = os.getenv('FUSIONSOLAR_PASSWORD')
+    site_id = args.site_id or os.getenv('SITE_ID', '72289258')
 
     if not username or not password:
         logger.error("✗ Missing credentials in environment variables")
@@ -239,33 +245,27 @@ async def main():
     output_dir = os.getenv('OUTPUT_DIR', './data')
     os.makedirs(output_dir, exist_ok=True)
 
-    # Get current billing period
     today = datetime.now()
-    if today.day >= 15:
-        billing_start = datetime(today.year, today.month, 15)
-        if today.month == 12:
-            billing_end = datetime(today.year + 1, 1, 14)
-        else:
-            billing_end = datetime(today.year, today.month + 1, 14)
+    billing_day = int(os.getenv('BILLING_DAY', '15'))
+    if today.day >= billing_day:
+        billing_start = datetime(today.year, today.month, billing_day)
     else:
         if today.month == 1:
-            billing_start = datetime(today.year - 1, 12, 15)
+            billing_start = datetime(today.year - 1, 12, billing_day)
         else:
-            billing_start = datetime(today.year, today.month - 1, 15)
-        billing_end = datetime(today.year, today.month, 14)
+            billing_start = datetime(today.year, today.month - 1, billing_day)
 
-    # Extract from billing cycle start (15th) to today
     end_date = datetime.now()
     start_date = billing_start
 
     logger.info(f"\n{'='*60}")
     logger.info(f"FusionSolar Browser Automation Extractor")
     logger.info(f"{'='*60}")
-    logger.info(f"Billing Period: {billing_start.date()} to {billing_end.date()}")
+    logger.info(f"Site ID: {site_id}")
     logger.info(f"Testing extraction: {start_date.date()} to {end_date.date()}")
 
     scraper = FusionSolarScraper(username, password)
-    data = await scraper.extract_billing_cycle(start_date, end_date)
+    data = await scraper.extract_billing_cycle(start_date, end_date, site_id=site_id)
 
     if data:
         output_file = os.path.join(output_dir, f"tnb_billing_browser_{start_date.strftime('%Y%m%d')}.csv")

@@ -1,33 +1,35 @@
-# FusionSolar Weekly Report — schedule and manual triggers
+# FusionSolar Weekly Report — scheduling options
 #
-# The container runs its own cron internally. You do NOT need a host crontab.
-# Schedule is controlled entirely by the CRON_SCHEDULE env var in .env.
+# Pick ONE approach:
+#   A) Native Linux cron (simple) — this file
+#   B) Docker cron (container with internal cron) — see docker-compose.yml
 #
-# ---------------------------------------------------------------------------
-# Default schedule
-# ---------------------------------------------------------------------------
-# Every Friday at 8:00 AM (container time):
-#   CRON_SCHEDULE=0 8 * * 5
+# ── A) Native Linux cron ──────────────────────────────────────────────────
 #
-# Other examples:
-#   0 8 * * 1        # Every Monday at 8 AM
-#   0 8 * * 1,5      # Mondays AND Fridays at 8 AM
-#   0 8 1 * *        # 1st of every month at 8 AM
-#   */5 * * * *      # Every 5 minutes (debug / firehose only)
+# Prerequisites:
+#   1. python3 + pip packages installed (pip install -r requirements.txt)
+#   2. playwright install chromium
+#   3. .env file in the project root with your credentials
 #
-# After changing CRON_SCHEDULE in .env:
-#   docker compose up -d --force-recreate
+# Add this to your user crontab (crontab -e):
 #
-# ---------------------------------------------------------------------------
-# Send a report RIGHT NOW (one-off, doesn't touch the running container)
-# ---------------------------------------------------------------------------
-#   docker compose run --rm fusionsolar-extractor python /app/extract_and_email.py
+#   0 8 * * 5 /path/to/run.sh >> /path/to/report.log 2>&1
 #
-# ---------------------------------------------------------------------------
-# Send on next container start (e.g. after a rebuild)
-# ---------------------------------------------------------------------------
-# Set in .env:
-#   RUN_ON_START=true
-# Then:
-#   docker compose up -d --force-recreate
-# Remember to set RUN_ON_START=false afterwards or every restart will email.
+# Run a one-off preview:
+#   /path/to/run.sh --preview
+#
+# Send email now:
+#   /path/to/run.sh
+#
+# ── B) Docker cron ────────────────────────────────────────────────────────
+#
+# Uses CRON_SCHEDULE env var from .env. Container runs cron internally.
+#
+# Rebuild + start:
+#   docker compose up -d --build
+#
+# One-off run (doesn't touch running container):
+#   docker compose run --rm fusionsolar-extractor python /app/main.py
+#
+# Preview:
+#   docker compose run --rm fusionsolar-extractor python /app/main.py --preview
